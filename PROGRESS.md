@@ -3,23 +3,23 @@
 > Vue d'ensemble de l'avancement sur l'ensemble des phases du projet.
 > Mis à jour à chaque étape terminée.
 
-**Dernière mise à jour** : 09 novembre 2026
+**Dernière mise à jour** : 10 novembre 2026
 
 ---
 
 ## 🏁 Avancement global
 
 ```
-████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 20%
+██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 30%
 ```
 
-**Phase actuelle** : Phase 0 — Setup environnement (presque terminée)
+**Phase actuelle** : Phase 1 — Lab de base (en cours)
 
 ---
 
 ## 📋 Détail par phase
 
-### Phase 0 — Setup environnement ⏳ 95%
+### Phase 0 — Setup environnement ✅ 100%
 
 - [x] Python 3.13.9 installé sur le PC hôte
 - [x] Git 2.51.0 installé et configuré
@@ -33,13 +33,14 @@
 - [x] 4 VMnets créés et renommés : Clients, Servers, Blue, Red
 - [x] Documentation réseau (`docs/network-architecture.md`)
 - [x] Journal de bord mis en place
-- [ ] ISOs téléchargées (pfSense, Metasploitable, Kali, Windows Server 2022)
+- [x] ISOs téléchargées (pfSense, Kali, Metasploitable 2, Windows Server 2025, Windows 10, Ubuntu)
 
-### Phase 1 — Lab de base ⏳ 0%
+### Phase 1 — Lab de base ⏳ 50%
 
-- [ ] pfSense installé et configuré (routeur + VLANs)
-- [ ] Kali Linux installée (double NIC : NAT + Red)
-- [ ] Metasploitable 2 installée (sur Servers uniquement)
+- [x] pfSense installé et configuré (5 interfaces, DHCP activé sur 3 LANs)
+- [ ] Kali Linux installée (double NIC : NAT + Red) — EN COURS
+- [ ] Metasploitable 2 installée et démarrée
+- [ ] Accès à l'interface web pfSense depuis Kali
 - [ ] VSCode installé dans Kali
 - [ ] Python validé dans Kali
 - [ ] Repo cloné dans Kali (via SSH ou HTTPS)
@@ -111,9 +112,10 @@
 
 ## 🎯 Prochaines actions prioritaires
 
-1. **Télécharger les ISOs** (pfSense, Metasploitable, Kali, Windows Server 2022)
-2. **Créer le dossier** `C:\Users\Anthony\VMs\ISOs\`
-3. **Installer pfSense** (première VM du lab)
+1. **Finaliser l'installation Kali Linux** (en cours)
+2. **Accéder à l'interface web pfSense** depuis Kali (navigateur Firefox dans Kali → https://192.168.10.1)
+3. **Démarrer Metasploitable 2** et tester la connectivité
+4. **Première phase Python** : ping scanner
 
 ---
 
@@ -121,8 +123,8 @@
 
 | Indicateur | Valeur |
 |---|---|
-| Phases complétées | 0 / 11 |
-| Phases en cours | 1 (Phase 0) |
-| Sessions de travail | 1 |
+| Phases complétées | 1 / 11 (Phase 0) |
+| Phases en cours | 1 (Phase 1) |
+| Sessions de travail | 2 |
 | Date de début | Septembre 2026 |
 | Date de reprise | 09 novembre 2026 |

@@ -44,3 +44,53 @@ Reprise du projet après plusieurs mois d'interruption. Objectif de cette sessio
 - Commencer la Phase 1 : installation de pfSense (le routeur du lab).
 
 ---
+
+## 📅 Session #2 — 09-10 novembre 2026 (nuit) — Construction du lab
+
+### Contexte
+Suite de la session #1 du matin. Objectif : passer des configurations réseau théoriques à la construction réelle du lab, en commençant par le routeur pfSense puis l'attaquant Kali.
+
+### Objectifs
+- [x] Réparer définitivement le VMnet Red (encore bloqué en APIPA au début)
+- [x] Télécharger les ISOs restantes (pfSense, Kali, Metasploitable 2)
+- [x] Organiser les ISOs dans `C:\Users\Anthony\VMs\ISOs\`
+- [x] Créer et installer la VM pfSense-Router (5 cartes réseau)
+- [x] Configurer les 5 interfaces pfSense (WAN + 4 LANs)
+- [x] Activer le DHCP server sur Clients, Blue, Red (statique pour Servers)
+- [x] Créer la VM Kali-Linux-Red (2 cartes réseau : NAT + Red)
+- [ ] Installation Kali en cours au moment de cette entrée
+
+### Décisions techniques
+- **pfSense** choisi comme routeur central : open-source, basé FreeBSD, standard de l'industrie pour les labs cyber.
+- **Architecture 5 interfaces pfSense** :
+  - WAN (em0) → VMnet8 NAT → 192.168.56.229/24 (DHCP VMware)
+  - LAN (em1) → VMnet10 Clients → 192.168.10.1/24 (DHCP activé, plage .100-.200)
+  - OPT1 (em2) → VMnet3 Servers → 192.168.20.1/24 (pas de DHCP, IPs statiques)
+  - OPT2 (em3) → VMnet4 Blue → 192.168.30.1/24 (DHCP activé)
+  - OPT3 (em4) → VMnet5 Red → 192.168.99.1/24 (DHCP activé)
+- **Kali avec 2 NICs** : eth0 sur NAT pour les updates/git, eth1 sur Red pour le lab isolé.
+- **Partitionnement Kali** : "Assisté - disque entier - tout dans une seule partition", choix débutant adapté à un lab.
+- **Pack d'outils Kali** : top10 + default (environ 600 outils), largement suffisant pour nos 10 phases.
+- **Accès à l'interface web pfSense** : choisi de passer par Kali (approche réaliste pentester) plutôt que depuis Windows (évite le conflit d'IP entre VMnet10 côté Windows et LAN pfSense).
+
+### Difficultés rencontrées
+- **Piège Netgate** : le site pfSense pousse vers "Netgate Installer" (outil de maintenance hardware) au lieu du vrai pfSense CE. Solution : passer par le miroir direct https://atxfiles.netgate.com/mirror/downloads/
+- **Confusion DHCP client vs DHCP server** dans la config pfSense console. "Configure IPv4 via DHCP?" = recevoir une IP (à répondre n pour les LANs), "Enable DHCP server?" = distribuer des IPs (à répondre y pour les LANs clients).
+- **Erreur "Invalid interface!"** : tapé une IP (192.168.10.1) au lieu du numéro d'interface (2) dans le menu Set interface IP address. Corrigé en relançant proprement l'option 2.
+- **VMware non lancé en admin** au départ → boutons grisés dans Virtual Network Editor. Fix : bouton "Change Settings" en bas pour demander l'élévation.
+
+### Apprentissages du jour
+- **Les interfaces Ethernet dans Linux (eth0, eth1)** suivent l'ordre d'ajout des cartes réseau dans VMware. Idem avec `em0, em1` dans pfSense (FreeBSD).
+- **DHCP client ≠ DHCP server** : notion fondamentale. Un routeur peut être les deux à la fois (client sur WAN, server sur LAN).
+- **Convention de plage DHCP** : garder les premières IPs (.1 à .99) pour le statique, utiliser .100-.200 pour le dynamique. Standard d'entreprise.
+- **Segmentation réseau** = défense n°1 en entreprise. Nos 4 VLANs (Clients/Servers/Blue/Red) reproduisent une architecture réelle.
+- **ISO ≠ VM pré-faite** : Metasploitable 2 est fournie comme VM complète (fichiers .vmx + .vmdk), à ouvrir directement dans VMware, pas à installer.
+
+### Prochaine session
+- Finaliser l'installation Kali (configuration réseau post-install)
+- Accéder à l'interface web pfSense (https://192.168.10.1) depuis Kali
+- Installer et démarrer Metasploitable 2
+- Premier test de connectivité : ping entre Kali et Metasploitable via pfSense
+- **Préparer la Phase 2 : écriture du premier script Python (ping scanner)**
+
+---
