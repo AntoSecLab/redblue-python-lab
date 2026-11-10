@@ -94,3 +94,50 @@ Suite de la session #1 du matin. Objectif : passer des configurations réseau th
 - **Préparer la Phase 2 : écriture du premier script Python (ping scanner)**
 
 ---
+
+## 📅 Session #3 — 10 novembre 2026 (après-midi) — Accès admin pfSense via Red
+
+### Contexte
+Suite de la nuit. Kali était installée et fonctionnelle, mais impossible d'accéder à l'interface web pfSense depuis le VLAN Red. Objectif : comprendre pourquoi, débloquer l'accès admin depuis Red, et nettoyer l'architecture Kali pour revenir à 2 NICs.
+
+### Objectifs
+- [x] Diagnostiquer pourquoi pfSense ne répond pas sur 192.168.99.1 depuis Kali
+- [x] Configurer NetworkManager pour gérer proprement les 2 cartes réseau Kali
+- [x] Ajouter temporairement une 3e carte réseau sur Kali (VLAN Clients) pour accéder à pfSense
+- [x] Se connecter à l'interface web pfSense pour la première fois
+- [x] Renommer les interfaces pfSense (OPT1→SERVERS, OPT2→BLUE, OPT3→RED)
+- [x] Créer la règle firewall "Allow RED to anywhere" pour débloquer l'admin depuis Red
+- [x] Changer le mot de passe admin par défaut
+- [x] Supprimer la 3e carte réseau Kali (retour à l'archi propre à 2 NICs)
+- [x] Validation finale : accès complet à pfSense depuis Red (eth1)
+
+### Décisions techniques
+- **Création de 2 connexions NetworkManager dédiées** sur Kali (`NAT-Internet` pour eth0 et `Red-Lab` pour eth1) au lieu d'une connexion partagée qui créait des conflits (dès qu'on connectait eth0, eth1 se déconnectait, et vice-versa).
+- **Approche "ajout temporaire d'une 3e NIC"** pour bootstrapper l'accès pfSense : la règle anti-lockout de pfSense n'autorise que le LAN natif pour l'admin par défaut. On a ajouté eth2 sur VLAN Clients pour arriver à l'interface web, créer la règle firewall autorisant RED, puis retiré eth2.
+- **Règle firewall RED → anywhere** choisie plutôt qu'une règle restrictive (RED → pfSense HTTPS uniquement). Justification : le VLAN Red est celui de l'attaquant, il doit pouvoir tout faire. Les restrictions s'appliquent aux autres VLANs (Clients, Servers).
+- **Mot de passe admin changé** : `pfsense` (default) → `adminkalired`. Les mots de passe par défaut sont une des vulnérabilités les plus exploitées en cyber.
+
+### Difficultés rencontrées
+- **Conflit NetworkManager "Wired connection 1"** : une connexion générique essayait d'être assignée à plusieurs interfaces simultanément. Fix : suppression + création de connexions dédiées par interface.
+- **pfSense ne répondait pas au ping depuis Kali** malgré un ARP qui fonctionnait → c'était bien le firewall qui droppait ICMP sur les interfaces OPT par défaut. Comportement correct en sécurité (deny by default).
+- **Rate-limiting / scan detection pfSense** : après plusieurs tests nmap rapprochés, les ports étaient affichés "filtered" au 2e scan. pfSense détecte les scans aggressifs et met temporairement l'IP en quarantaine. Le fix : attendre 5 min ou scanner avec `nmap -T2` (slow scan).
+- **Login pfSense refusé après changement de mdp** : probable erreur de frappe dans le champ password invisible. Fix : option 3 de la console pfSense pour reset le mdp à default `pfsense`, puis changement propre via l'interface web avec copier-coller.
+- **Caractère `|` (pipe) impossible à taper dans la console VMware** (clavier QWERTY par défaut, incompatible AZERTY). Fix : utiliser SSH depuis Kali pour taper dans le shell pfSense, ou utiliser des commandes sans pipe.
+
+### Apprentissages du jour
+- **ARP vs ICMP vs HTTPS = 3 couches réseau différentes** (L2/L3/L7). Un hôte peut répondre à ARP mais bloquer ICMP (classique en sécurité). Diagnostiquer couche par couche.
+- **La règle anti-lockout de pfSense** n'autorise par défaut que le LAN natif pour l'admin. Important à comprendre pour tout nouveau VLAN.
+- **Les tables PF (`pfctl -t <table>`)** stockent les IPs bannies temporairement (virusprot, sshguard, bruteforce, webConfiguratorlockout). `pfctl -ss` montre les connexions actives.
+- **Enable SSH sur pfSense (option 14)** = réflexe pro pour administrer à distance avec un vrai clavier Linux.
+- **NetworkManager recrée automatiquement une connexion** sur toute interface vue "libre". Pour vraiment supprimer une interface : la retirer côté hyperviseur.
+- **`nmcli connection add/delete/up`** = commandes de base pour gérer les profils réseau sur Kali/Ubuntu moderne.
+- **"Deny by default, allow by exception"** = principe fondamental du firewall. Chaque règle qu'on ajoute doit être justifiée.
+
+### Prochaine session
+- Installer et démarrer Metasploitable 2 sur VLAN Servers
+- Configurer son IP statique (192.168.20.100)
+- Créer une règle firewall RED → SERVERS pour autoriser Kali à atteindre Metasploitable
+- Premier ping Kali → Metasploitable via pfSense (validation du routage multi-VLAN)
+- **🐍 PHASE 2 : écrire le premier script Python — un ping scanner**
+
+---

@@ -10,10 +10,10 @@
 ## 🏁 Avancement global
 
 ```
-██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 30%
+██████████████████░░░░░░░░░░░░░░░░░░░░░░ 45%
 ```
 
-**Phase actuelle** : Phase 1 — Lab de base (en cours)
+**Phase actuelle** : Phase 1 — Lab de base (85%)
 
 ---
 
@@ -35,73 +35,92 @@
 - [x] Journal de bord mis en place
 - [x] ISOs téléchargées (pfSense, Kali, Metasploitable 2, Windows Server 2025, Windows 10, Ubuntu)
 
-### Phase 1 — Lab de base ⏳ 50%
+### Phase 1 — Lab de base ⏳ 85%
 
 - [x] pfSense installé et configuré (5 interfaces, DHCP activé sur 3 LANs)
-- [ ] Kali Linux installée (double NIC : NAT + Red) — EN COURS
+- [x] Interfaces renommées (SERVERS/BLUE/RED au lieu d'OPT1/2/3)
+- [x] Kali Linux installée (double NIC : NAT + Red)
+- [x] Connexions NetworkManager dédiées (`NAT-Internet`, `Red-Lab`)
+- [x] Internet validé sur Kali (ping 8.8.8.8)
+- [x] DHCP pfSense distribue des IPs (Kali reçoit 192.168.99.101)
+- [x] Règle firewall RED → anywhere créée
+- [x] Accès interface web pfSense depuis Red (https://192.168.99.1)
+- [x] Mot de passe admin pfSense changé
+- [x] Archi propre à 2 NICs sur Kali (eth2 temporaire supprimé)
+- [x] Documentation du troubleshooting (`docs/troubleshooting.md`)
+- [x] Schéma visuel de l'infra (`docs/network-diagram.svg`)
 - [ ] Metasploitable 2 installée et démarrée
-- [ ] Accès à l'interface web pfSense depuis Kali
-- [ ] VSCode installé dans Kali
-- [ ] Python validé dans Kali
-- [ ] Repo cloné dans Kali (via SSH ou HTTPS)
-- [ ] **🐍 Première ligne de Python : ping scanner**
+- [ ] IP statique Metasploitable configurée (192.168.20.100)
+- [ ] Règle firewall RED → SERVERS (pour atteindre Metasploitable)
+- [ ] Premier ping Kali → Metasploitable via pfSense (validation routage)
 
-### Phase 2 — Port Scanner ⏳ 0%
+### Phase 2 — Premier script Python : Ping Scanner ⏳ 0%
 
+- [ ] Python validé dans Kali (`python3 --version`)
 - [ ] Création du module `scanner/`
+- [ ] Première ligne de Python 🐍
+- [ ] Ping scanner simple (hôte unique)
+- [ ] Ping scanner d'un subnet complet (/24)
+- [ ] Multi-threading pour accélérer
+- [ ] Export des résultats en JSON
+
+### Phase 3 — Port Scanner ⏳ 0%
+
+- [ ] Création du module `portscanner/`
+- [ ] Port scanner TCP basique
 - [ ] Port scanner multi-threadé
-- [ ] Argparse pour CLI
+- [ ] Argparse pour CLI (options --ports, --threads, --output)
 - [ ] Tests unitaires
 - [ ] Documentation d'utilisation
 
-### Phase 3 — Banner Grabbing & Fingerprinting ⏳ 0%
+### Phase 4 — Banner Grabbing & Fingerprinting ⏳ 0%
 
 - [ ] Détection des services derrière les ports ouverts
 - [ ] Parsing des bannières avec regex
 - [ ] Export JSON/CSV des résultats
 
-### Phase 4 — Packet Sniffer (Scapy) ⏳ 0%
+### Phase 5 — Packet Sniffer (Scapy) ⏳ 0%
 
 - [ ] Installation de Scapy
 - [ ] Capture de paquets en temps réel
 - [ ] Parsing TCP/UDP/ARP
 - [ ] Sauvegarde en .pcap
 
-### Phase 5 — ARP Spoofing & MITM ⏳ 0%
+### Phase 6 — ARP Spoofing & MITM ⏳ 0%
 
 - [ ] ARP spoofer en Python
 - [ ] Interception de trafic
 - [ ] DNS spoofing
 
-### Phase 6 — Password Tools ⏳ 0%
+### Phase 7 — Password Tools ⏳ 0%
 
 - [ ] Hash cracker (MD5, SHA1, SHA256)
 - [ ] Analyseur d'entropie de mots de passe
 - [ ] Password spraying Active Directory
 - [ ] Kerberoasting (si AD déployé)
 
-### Phase 7 — Attaques Web ⏳ 0%
+### Phase 8 — Attaques Web ⏳ 0%
 
 - [ ] Déploiement de DVWA via Docker
 - [ ] Scanner SQLi basique
 - [ ] Scanner XSS basique
 - [ ] Analyse de headers HTTP de sécurité
 
-### Phase 8 — 🛡️ Blue Team (SIEM) ⏳ 0%
+### Phase 9 — 🛡️ Blue Team (SIEM) ⏳ 0%
 
 - [ ] Installation de Wazuh
 - [ ] Configuration des agents sur les VMs
 - [ ] Création de règles de détection custom
 - [ ] Détection de scans Red team en temps réel
 
-### Phase 9 — Durcissement & Dockerisation ⏳ 0%
+### Phase 10 — Durcissement & Dockerisation ⏳ 0%
 
 - [ ] Hardening pfSense (règles firewall strictes)
 - [ ] GPO sur Active Directory
 - [ ] Dockerisation de la toolbox Red team
 - [ ] CLI unifiée en une seule commande
 
-### Phase 10 — Rapport & Portfolio ⏳ 0%
+### Phase 11 — Rapport & Portfolio ⏳ 0%
 
 - [ ] Rapport de pentest format pro (PDF)
 - [ ] Vidéo démo du lab
@@ -112,10 +131,11 @@
 
 ## 🎯 Prochaines actions prioritaires
 
-1. **Finaliser l'installation Kali Linux** (en cours)
-2. **Accéder à l'interface web pfSense** depuis Kali (navigateur Firefox dans Kali → https://192.168.10.1)
-3. **Démarrer Metasploitable 2** et tester la connectivité
-4. **Première phase Python** : ping scanner
+1. **Installer Metasploitable 2** (VM pré-faite, 5 min)
+2. **Configurer son IP statique** (192.168.20.100)
+3. **Créer règle firewall RED → SERVERS** (pour que Kali puisse atteindre Metasploitable)
+4. **Premier ping multi-VLAN** (validation du lab complet)
+5. **🐍 PHASE 2 : premières lignes de Python**
 
 ---
 
@@ -123,8 +143,9 @@
 
 | Indicateur | Valeur |
 |---|---|
-| Phases complétées | 1 / 11 (Phase 0) |
-| Phases en cours | 1 (Phase 1) |
-| Sessions de travail | 2 |
+| Phases complétées | 1 / 12 (Phase 0) |
+| Phases en cours | 1 (Phase 1 à 85%) |
+| Sessions de travail | 3 |
 | Date de début | Septembre 2026 |
 | Date de reprise | 09 novembre 2026 |
+| Dernière session | 10 novembre 2026 |
