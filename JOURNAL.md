@@ -23,7 +23,7 @@ Reprise du projet après plusieurs mois d'interruption. Objectif de cette sessio
 - [x] Vérifier l'état des 4 VMnets VMware (Clients, Servers, Blue, Red)
 - [x] Réparer le VMnet Red qui affichait une IP APIPA (169.254.x.x)
 - [x] Mettre en place les fichiers de suivi (JOURNAL.md + PROGRESS.md)
-- [ ] Préparer la liste des ISOs à télécharger
+- [x] Préparer la liste des ISOs à télécharger
 
 ### Décisions techniques
 - **Approche "Full VM"** retenue : le développement et l'exécution se feront intégralement dans les VMs. VSCode, Python, Git seront installés dans Kali, pas utilisés en Remote SSH depuis le PC hôte.
@@ -58,7 +58,7 @@ Suite de la session #1 du matin. Objectif : passer des configurations réseau th
 - [x] Configurer les 5 interfaces pfSense (WAN + 4 LANs)
 - [x] Activer le DHCP server sur Clients, Blue, Red (statique pour Servers)
 - [x] Créer la VM Kali-Linux-Red (2 cartes réseau : NAT + Red)
-- [ ] Installation Kali en cours au moment de cette entrée
+- [x] Installation Kali en cours au moment de cette entrée
 
 ### Décisions techniques
 - **pfSense** choisi comme routeur central : open-source, basé FreeBSD, standard de l'industrie pour les labs cyber.
@@ -139,5 +139,60 @@ Suite de la nuit. Kali était installée et fonctionnelle, mais impossible d'acc
 - Créer une règle firewall RED → SERVERS pour autoriser Kali à atteindre Metasploitable
 - Premier ping Kali → Metasploitable via pfSense (validation du routage multi-VLAN)
 - **🐍 PHASE 2 : écrire le premier script Python — un ping scanner**
+
+---
+## 📅 Session #4 — 12 novembre 2026 — Lab Packet Tracer en parallèle
+
+### Contexte
+Décision prise de construire un lab Cisco Packet Tracer en parallèle de l'infra VMware réelle. Objectif : approfondir la compréhension des concepts réseau (VLANs, routing, firewall) côté Cisco IOS, qui est le standard du marché. Les 2 labs sont indépendants mais se renforcent pédagogiquement.
+
+### Objectifs
+- [x] Créer la topologie physique (routeur 1941 + switch 2960 + 4 PCs)
+- [x] Sécuriser routeur et switch (enable secret, console, VTY, service password-encryption)
+- [x] Créer les 4 VLANs (CLIENTS, SERVERS, BLUE, RED)
+- [x] Assigner les ports access aux VLANs
+- [x] Configurer le trunk 802.1Q (Fa0/1 vers le routeur)
+- [x] Implémenter le router-on-a-stick (sous-interfaces dot1Q)
+- [x] Configurer DHCP sur le routeur (4 pools)
+- [x] Implémenter une ACL extended pour bloquer RED → SERVERS
+- [x] Valider tous les tests (pings OK/KO selon ACL)
+- [x] Documenter l'ensemble dans un README dédié
+- [x] Push du lab sur GitHub
+
+### Décisions techniques
+- **Choix Packet Tracer v9.0** (dernière version) pour accéder aux features modernes.
+- **Routeur 1941** choisi comme équivalent pfSense — standard CCNA et compatible avec tous les tutos.
+- **ACL numérotée 150** (extended, plage 100-199) pour pouvoir filtrer sur src+dest+protocole.
+- **Approche "deny Red→Servers + permit all"** pour simuler un durcissement réaliste sans tout bloquer.
+- **DHCP excluded-address 1-99** sur chaque VLAN pour laisser la plage statique pour les équipements critiques.
+
+### Difficultés rencontrées
+- **Confusion initiale "Reply from X"** : le message "Reply from 192.168.99.1: Destination host unreachable" peut faire croire que le ping passe, alors que c'est le routeur qui dit "je refuse". Clé : regarder `Received = 0` dans les stats.
+- **ACL qui semblait inactive au début** : résolu avec un `no ip access-group` + `ip access-group` pour force le reload sur l'interface.
+- **Faute de frappe "temrinal"** au lieu de "terminal" dans la CLI : Cisco affiche un petit `^` sous le caractère erroné → feature de debug super pratique.
+
+### Apprentissages du jour
+- **ARP vs ICMP** : ping n'est pas ARP, mais ARP est nécessaire une fois avant le premier ping pour résoudre la MAC de la gateway.
+- **TTL dans ping** : Windows=128, Linux=64, décrémenté de 1 à chaque routeur traversé. Permet d'identifier l'OS cible en pentest.
+- **Router-on-a-stick** : un seul câble entre routeur et switch peut gérer N VLANs avec les sous-interfaces 802.1Q.
+- **DHCP client vs server** : un routeur peut être les deux à la fois (client sur WAN, serveur sur LAN).
+- **MAC spoofing** : les adresses MAC peuvent être modifiées côté OS, donc les filtres basés sur MAC ne sont pas fiables.
+- **Les ACL ont un deny implicite** : toujours finir par `permit ip any any` si on veut juste bloquer un flux ciblé.
+- **"Destination host unreachable"** = routeur qui bloque. **"Request timed out"** = silence (firewall silencieux, plus discret en prod).
+- **Protocoles maîtrisés** : DHCP (67/68 UDP), DNS (53 UDP), HTTP (80 TCP), HTTPS (443 TCP), ARP (L2), ICMP (L3).
+
+### Documentation produite
+- PDF cheatsheet "Mots de passe Cisco IOS" (6 pages) dans `docs/cheatsheets/cisco_passwords.pdf`
+- PDF cheatsheet "Protocoles réseau essentiels" (6 pages + vocabulaire anglais) dans `docs/cheatsheets/protocoles_reseau.pdf`
+- Fichier d'import Anki avec ~55 fiches de révision (vocabulaire français/anglais)
+- Fichier `packet-tracer/lab-v1-vlans.pkt` avec le lab complet
+- `packet-tracer/README.md` détaillé documentant l'architecture et les configs
+
+### Prochaine session
+- Retour VMware : installer Metasploitable 2 sur le VLAN Servers
+- Configurer son IP statique (192.168.20.100)
+- Premier ping Kali → Metasploitable via pfSense (validation du routage réel)
+- **🐍 PHASE 2 : écrire le PREMIER SCRIPT PYTHON — un ping scanner**
+- Extension futures Packet Tracer : ajout d'un "Red externe" (attaquant depuis internet simulé)
 
 ---

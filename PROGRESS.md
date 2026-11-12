@@ -54,6 +54,21 @@
 - [ ] Règle firewall RED → SERVERS (pour atteindre Metasploitable)
 - [ ] Premier ping Kali → Metasploitable via pfSense (validation routage)
 
+### 🎓 Lab Packet Tracer parallèle ✅ 90%  Dernière maj : 12/11/2026
+
+- [x] Topologie physique (routeur 1941 + switch 2960 + 4 PCs)
+- [x] Sécurisation devices (enable, console, VTY, password-encryption)
+- [x] Création des 4 VLANs (CLIENTS, SERVERS, BLUE, RED)
+- [x] Ports access assignés aux VLANs
+- [x] Trunk 802.1Q entre switch et routeur
+- [x] Router-on-a-stick (sous-interfaces dot1Q)
+- [x] DHCP serveur sur routeur (4 pools)
+- [x] ACL extended bloquant RED → SERVERS
+- [x] Tests ping validés (OK/KO selon ACL)
+- [x] Documentation complète (README dans packet-tracer/)
+- [ ] (Futur v2) Ajout d'un Red externe (simulateur hacker depuis internet)
+
+
 ### Phase 2 — Premier script Python : Ping Scanner ⏳ 0%
 
 - [ ] Python validé dans Kali (`python3 --version`)
