@@ -22,6 +22,9 @@
 | 10 | Timeout sur `curl https://192.168.99.1` depuis Red | pfSense Firewall | Règle Pass sur interface RED |
 | 11 | Rate-limiting pfSense après scans nmap répétés | pfSense | Attendre 5 min, scanner avec `nmap -T2` |
 | 12 | Login pfSense refusé après changement de mdp | pfSense | Reset via console (option 3), puis copier-coller |
+| 13 | Conflit IP Windows ↔ pfSense sur VMnet3/5 | VMware | Décocher "Connect a host virtual adapter" sur toutes les VMnets |
+| 14 | Firefox vers pfSense OK mais ping bloqué | pfSense Firewall | Ajouter règle "Allow RED ICMP (ping)" spécifique |
+| 15 | Kali ping pfSense OK mais pas Metasploitable | Routage Linux | Route statique forcée via eth1 (metric priority) |
 
 ---
 
@@ -258,21 +261,17 @@ Par défaut, pfSense **bloque TOUT trafic entrant** sur les interfaces OPT (OPT1
 
 La règle anti-lockout n'autorise que **l'interface LAN "officielle"** à accéder à l'admin.
 
-### Solution appliquée
-Création d'une règle firewall explicite sur l'interface RED :
+### Solution appliquée (initiale — session #3)
+Création d'une règle firewall "allow all" sur l'interface RED (pour débloquer rapidement).
 
-- **Firewall → Rules → RED → Add**
-- Action : **Pass**
-- Protocol : **Any**
-- Source : **RED subnets**
-- Destination : **Any**
-- Description : `Allow RED to anywhere (full outbound)`
-- **Save → Apply Changes**
-
-Cette règle "allow all" est acceptable pour un VLAN attaquant (Red team). En production, on restreindrait.
+### Solution finale (session #5, best practice)
+Remplacement par **3 règles granulaires** (voir Problème #14) :
+- Allow RED to pfSense HTTPS (admin) — port 443 TCP uniquement
+- Allow RED ICMP (ping) — pour les diagnostics
+- Allow RED to Servers (pentest) — accès ciblé au VLAN Servers
 
 ### Apprentissage
-**"Deny by default, allow by exception"** est le principe fondamental des firewalls. Chaque VLAN nécessite ses règles explicites. En entreprise, c'est le travail quotidien d'un ingénieur sécurité.
+**"Deny by default, allow by exception"** est le principe fondamental des firewalls. Une règle "allow all" est pratique en debug mais **doit être remplacée** par des règles granulaires en configuration finale. Chaque flux légitime = 1 règle explicite.
 
 ---
 
@@ -324,6 +323,212 @@ Après avoir changé le mot de passe admin de `pfsense` à `adminkalired`, impos
 
 ---
 
+## 🔴 Problème 13 — Conflit IP Windows ↔ pfSense sur VMnet3/5 _(Session #4)_
+
+### Symptôme
+Kali ne pouvait pas pinger pfSense sur son IP OPT (192.168.20.1 pour SERVERS, 192.168.99.1 pour RED). Pourtant les interfaces étaient bien configurées côté pfSense.
+
+### Diagnostic avec tcpdump
+```bash
+sudo tcpdump -i eth1 arp
+```
+→ Les réponses ARP venaient d'une **adresse MAC Windows** (`00:50:56:XX:XX:XX`) au lieu de l'adresse MAC de pfSense (`00:0c:29:XX:XX:XX`).
+
+### Cause
+Windows avait aussi configuré son adaptateur VMnet avec l'IP `.1` du subnet (par défaut VMware attribue `.1` à l'host). **Deux machines sur le même réseau avec la même IP** = conflit d'IP classique.
+
+### Solution appliquée
+Dans **Virtual Network Editor** pour CHAQUE VMnet (Clients, Servers, Blue, Red) :
+- **Décocher** "Connect a host virtual adapter to this network"
+- Apply
+
+Vérification : `ipconfig` sur Windows ne doit plus afficher ces VMnets.
+
+### Apprentissage
+**Les conflits d'IP sont silencieux et destructeurs.** `tcpdump` sur le trafic ARP permet d'identifier **qui répond réellement** à une IP. Si deux machines répondent → conflit à résoudre.
+
+Dans un lab où pfSense fait office de gateway sur chaque VLAN, **l'adaptateur host Windows n'a aucune utilité** sur ces VMnets → le désactiver pour éviter tout conflit.
+
+---
+
+## 🔴 Problème 14 — Firefox vers pfSense OK mais ping bloqué _(Session #5)_
+
+### Symptôme
+Depuis Kali, l'accès web à pfSense (`https://192.168.99.1`) fonctionnait parfaitement, mais `ping -c 4 192.168.99.1` → 100% packet loss.
+
+### Diagnostic
+Le trafic TCP sur port 443 passait, mais le trafic ICMP était bloqué. Ce n'est donc pas un problème de connectivité réseau, mais de **règle firewall spécifique**.
+
+### Cause
+Après avoir remplacé la règle "allow all" (Problème #10) par une règle plus restrictive **"Allow RED to pfSense HTTPS (admin)"** (uniquement port 443 TCP), tout autre protocole (ICMP, UDP, autres TCP) était bloqué par la règle implicite "deny all" de pfSense.
+
+**C'est le principe "deny by default" en action** : seul ce qui est explicitement autorisé passe.
+
+### Solution appliquée
+Création de **2 règles supplémentaires** sur l'interface RED :
+
+**Règle "Allow RED ICMP (ping)"** :
+| Champ | Valeur |
+|---|---|
+| Action | Pass |
+| Interface | RED |
+| Protocol | ICMP |
+| ICMP Subtypes | any |
+| Source | RED subnets |
+| Destination | any |
+
+**Règle "Allow RED to Servers (pentest)"** :
+| Champ | Valeur |
+|---|---|
+| Action | Pass |
+| Interface | RED |
+| Protocol | any |
+| Source | RED subnets |
+| Destination | Network 192.168.20.0/24 |
+
+**⚠️ Ne jamais oublier le "Apply Changes"** après avoir sauvé une règle (bandeau vert en haut).
+
+### Apprentissage
+- **Un firewall stateful = chaque flux non autorisé explicitement est bloqué**
+- **Un service qui marche (HTTPS) ne garantit pas que les autres passent** (ICMP, UDP, etc.)
+- **Les logs firewall** (Status → System Logs → Firewall) montrent les paquets bloqués en temps réel = outil de debug essentiel
+- **Diagnostics → Ping** depuis pfSense avec `Source address` custom = permet de tester depuis une interface pfSense spécifique, outil pro
+
+---
+
+## 🔴 Problème 15 — Kali ping pfSense OK mais pas Metasploitable _(Session #5)_
+
+### Symptôme
+Depuis Kali :
+- `ping -c 4 192.168.99.1` (pfSense côté RED) → ✅ 4/4 received
+- `ping -c 4 192.168.20.100` (Metasploitable) → ❌ 0/4 received, 100% packet loss
+
+Depuis Metasploitable :
+- `ping -c 4 192.168.20.1` (pfSense côté SERVERS) → ✅ 4/4 received
+
+### Diagnostic en 4 étapes
+
+**Étape 1** — Vérification firewall pfSense : règle "Allow RED to Servers" bien active.
+
+**Étape 2** — Test crucial `Diagnostics → Ping` depuis pfSense avec `Source address: RED` et `Hostname: 192.168.20.100` :
+```
+PING 192.168.20.100 from 192.168.99.1: 4/4 received ✅
+```
+→ pfSense PEUT atteindre Meta depuis son interface RED. **Donc le routage et le firewall fonctionnent côté pfSense.**
+
+**Étape 3** — `tcpdump -i eth0 icmp` sur Metasploitable pendant un ping depuis Kali :
+```
+listening on eth0, link-type EN10MB (Ethernet), capture size 96 bytes
+<RIEN n'est capturé>
+```
+→ **AUCUN paquet n'arrive sur Meta.** Le paquet se perd AVANT d'atteindre pfSense.
+
+**Étape 4** — Analyse de la table de routage Kali :
+```bash
+$ ip route show
+default via 192.168.56.2  dev eth0 proto dhcp metric 100  ← NAT
+default via 192.168.99.1  dev eth1 proto dhcp metric 101  ← Red
+192.168.56.0/24 dev eth0 proto kernel scope link
+192.168.99.0/24 dev eth1 proto kernel scope link
+```
+
+### Cause racine
+
+Kali avait **DEUX default gateways** :
+- Via eth0 (NAT) avec **metric 100**
+- Via eth1 (Red) avec **metric 101**
+
+**Linux priorise la route avec la metric la plus basse**. Donc tout trafic vers un réseau inconnu (ex: 192.168.20.0/24) partait via **eth0 vers le NAT** au lieu de pfSense Red. Les paquets se perdaient dans la nature.
+
+### Solution appliquée
+
+Ajout d'une **route statique** sur Kali pour forcer le trafic 192.168.20.0/24 à passer par eth1 :
+
+```bash
+sudo ip route add 192.168.20.0/24 via 192.168.99.1 dev eth1
+```
+
+### Vérification
+
+```bash
+$ ip route show
+192.168.20.0/24 via 192.168.99.1 dev eth1     ← Nouvelle route ★
+default via 192.168.56.2 dev eth0 metric 100
+default via 192.168.99.1 dev eth1 metric 101
+...
+
+$ ping -c 4 192.168.20.100
+64 bytes from 192.168.20.100: icmp_seq=1 ttl=63 time=1.21 ms
+...
+4 packets transmitted, 4 received, 0% packet loss ✅
+```
+
+**TTL=63** (au lieu de 64) → preuve mathématique que le paquet a bien traversé 1 routeur (pfSense).
+
+### ⚠️ Attention : persistance
+
+La route statique ajoutée est **en RAM uniquement**. Elle disparaît au reboot.
+
+Pour la rendre persistante sur Kali (à faire en session #6) :
+
+**Option A — NetworkManager** :
+```bash
+nmcli connection modify Red-Lab +ipv4.routes "192.168.20.0/24 192.168.99.1"
+```
+
+**Option B — /etc/network/interfaces** :
+```
+iface eth1 inet static
+    address 192.168.99.101
+    netmask 255.255.255.0
+    up route add -net 192.168.20.0/24 gw 192.168.99.1 dev eth1
+```
+
+De même pour l'IP statique de Metasploitable, à ajouter dans `/etc/network/interfaces` :
+```
+auto eth0
+iface eth0 inet static
+    address 192.168.20.100
+    netmask 255.255.255.0
+    gateway 192.168.20.1
+```
+
+### Apprentissage
+
+- **Toujours vérifier la table de routage** avant de supposer un problème firewall
+- **`tcpdump` = premier réflexe** quand "rien ne marche" : voir si le paquet arrive vraiment
+- **`Diagnostics → Ping` de pfSense avec source custom** = outil n°1 pour tester les règles depuis l'extérieur
+- **TTL décrémenté** = preuve de traversée d'un routeur (compteur de hops)
+- **Metric Linux** : plus petit = plus prioritaire (contre-intuitif pour un débutant)
+- **Firewall stateful** : les retours sont autorisés automatiquement si la connexion a été initiée
+
+### Schéma du problème et solution
+
+#### AVANT (bug)
+```
+                    Table de routage Kali:
+                    - default via NAT (metric 100) ← Linux prend celle-ci
+                    - default via Red (metric 101)
+
+KALI ────ping 192.168.20.100────▶ eth0 ────▶ NAT ──X── Perdu
+                                  (mauvaise interface)
+
+                                  eth1 (Red) ← Jamais utilisée
+```
+
+#### APRÈS (fix)
+```
+                    Table de routage Kali:
+                    - 192.168.20.0/24 via 192.168.99.1 dev eth1 ★ (nouvelle)
+                    - default via NAT (metric 100)
+                    - default via Red (metric 101)
+
+KALI ────ping 192.168.20.100────▶ eth1 ────▶ pfSense ────▶ META
+                                  (bonne interface)   (routage inter-VLAN)   ✅
+```
+
+---
+
 ## 🎯 Récapitulatif des bonnes pratiques apprises
 
 ### Côté outils
@@ -335,13 +540,19 @@ Après avoir changé le mot de passe admin de `pfsense` à `adminkalired`, impos
 ### Côté réseau
 - ✅ Toujours **nommer les VMnets** (Clients, Servers, Blue, Red) au lieu de numéros
 - ✅ **Créer des connexions NetworkManager dédiées** par interface
+- ✅ **Désactiver les host adapters** sur les VMnets où pfSense est gateway (évite conflit IP)
 - ✅ `ip addr`, `ip route`, `ip neigh` = trio de base pour diagnostiquer
+- ✅ **Toujours vérifier la table de routage** avant de blâmer un firewall
+- ✅ **Metric Linux** : plus petit = plus prioritaire
 
 ### Côté firewall
 - ✅ **"Deny by default, allow by exception"** = principe
 - ✅ **Toujours documenter chaque règle** (description claire)
+- ✅ **Règles granulaires** (par protocole, par destination) > règle "allow all"
 - ✅ **Vérifier les logs firewall** (Status → System Logs → Firewall) en live pour debug
+- ✅ **Diagnostics → Ping** avec source custom = tester le routage depuis une interface spécifique
 - ✅ **Scanner lentement** (`-T2`) pour éviter la détection
+- ✅ **Firewall stateful** : les retours sont automatiquement autorisés
 
 ### Côté sécurité
 - ✅ **Changer les mots de passe par défaut** immédiatement
@@ -349,8 +560,15 @@ Après avoir changé le mot de passe admin de `pfsense` à `adminkalired`, impos
 - ✅ **Copier-coller** les mdp depuis un éditeur pour éviter les typos
 - ✅ **Documenter les credentials** dans un fichier ignoré par Git (`.gitignore`)
 
+### Côté debug
+- ✅ **tcpdump = outil n°1** pour voir si un paquet arrive vraiment
+- ✅ **Dichotomie du debug** : tester chaque segment indépendamment (A→Router, Router→B, puis A→B)
+- ✅ **TTL dans ping** : décrémente de 1 à chaque routeur = compteur de hops
+- ✅ **Si tcpdump ne voit RIEN** = problème en amont (source), pas en destination
+
 ### Côté méthode
 - ✅ **Lire les messages d'erreur** avant de paniquer (90% des solutions sont dans le message)
 - ✅ **Utiliser `-v` ou `--verbose`** pour debug en profondeur
 - ✅ **Un changement à la fois**, tester, documenter
 - ✅ **Snapshot VMware** avant toute modif importante
+- ✅ **Un service qui marche ≠ tous les services passent** (HTTPS OK ≠ ping OK)

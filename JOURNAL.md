@@ -1,11 +1,3 @@
-# 📘 Journal de bord — redblue-python-lab
-
-> Journal chronologique de mon apprentissage de Python appliqué à la cybersécurité, à travers la construction d'un lab Red Team vs Blue Team.
->
-> Chaque entrée documente une session de travail : contexte, objectifs, décisions techniques, difficultés rencontrées, apprentissages.
-
----
-
 ## 🎯 À propos du projet
 
 - **Objectif pédagogique** : apprendre Python from scratch dans un contexte cybersécurité
@@ -194,5 +186,113 @@ Décision prise de construire un lab Cisco Packet Tracer en parallèle de l'infr
 - Premier ping Kali → Metasploitable via pfSense (validation du routage réel)
 - **🐍 PHASE 2 : écrire le PREMIER SCRIPT PYTHON — un ping scanner**
 - Extension futures Packet Tracer : ajout d'un "Red externe" (attaquant depuis internet simulé)
+
+---
+
+## 📅 Session #5 — 12 novembre 2026 (soirée) — Validation routage inter-VLAN Kali ↔ Metasploitable
+
+### Contexte
+Session de troubleshooting intense pour finaliser le lab VMware. Objectif de validation : un ping fonctionnel entre Kali (VLAN Red) et Metasploitable (VLAN Servers) en passant par pfSense. Session marathon de 3h qui a nécessité plusieurs cycles de debug (firewall, routage, table de routes Linux).
+
+### Objectifs
+- [x] Résoudre le blocage Kali → pfSense (ping 192.168.99.1)
+- [x] Installer et configurer Metasploitable 2 sur le VLAN Servers
+- [x] Attribuer une IP statique à Meta (192.168.20.100)
+- [x] Valider le routage pfSense entre VLANs Red et Servers
+- [x] Obtenir un ping fonctionnel Kali → Meta (via pfSense)
+- [x] Comprendre et documenter chaque problème rencontré
+
+### Décisions techniques
+- **Choix "deny by default" assumé** : plutôt que créer une règle "Allow RED to any", on crée 3 règles granulaires (HTTPS admin, ICMP, Servers pentest) pour appliquer le principe du moindre privilège.
+- **Route statique côté Kali plutôt que suppression du default gateway** : solution plus propre qu'un reconfiguration DHCP complète, et plus pédagogique.
+- **Metasploitable en IP statique** : pas de DHCP sur l'interface SERVERS de pfSense (pour l'instant), configuration manuelle via `ifconfig` + `route add`.
+- **Pas de règle sortante sur SERVERS pour ce soir** : respect de la logique "un serveur n'initie pas de connexions vers un attaquant", à ajouter plus tard uniquement si nécessaire (Meta → Internet pour updates, Meta → Blue pour logs Wazuh).
+
+### Difficultés rencontrées
+
+#### 🔴 Problème #1 : Firefox fonctionne vers pfSense mais pas le ping
+- **Symptôme** : `curl` et navigateur sur 192.168.99.1 → OK, mais `ping 192.168.99.1` → 100% loss.
+- **Cause** : pfSense bloque TOUT par défaut sur les interfaces OPT. Seule une règle "Allow HTTPS admin" avait été créée (port 443 TCP), autorisant l'accès web mais pas l'ICMP.
+- **Solution** : Création de la règle "Allow RED ICMP (ping)" avec Protocol=ICMP, Destination=any.
+
+#### 🔴 Problème #2 : Kali ping pfSense OK mais pas Metasploitable
+- **Symptôme** : `ping 192.168.99.1` depuis Kali → OK, mais `ping 192.168.20.100` → 100% loss.
+- **Hypothèses testées** :
+  1. Règle firewall "Allow RED to Servers" manquante → créée, toujours KO
+  2. Metasploitable mal configuré → vérifié `ifconfig` + `route -n`, IP et gateway OK
+  3. pfSense ne route pas entre VLANs → diagnostic ping depuis pfSense (Diagnostics → Ping, Source=RED) → **OK 4/4**
+- **Breakthrough** : `tcpdump -i eth0 icmp` sur Metasploitable → **AUCUN paquet n'arrivait**. Donc le paquet se perd AVANT d'atteindre Meta.
+- **Investigation table de routage Kali** : `ip route show` révèle **DEUX default gateways** :
+  - `default via 192.168.56.2 dev eth0 metric 100` (NAT)
+  - `default via 192.168.99.1 dev eth1 metric 101` (Red)
+- **Cause racine** : Linux priorise la route avec la metric la plus basse (eth0 metric 100). Donc tout trafic vers un réseau inconnu (192.168.20.0/24) partait vers le NAT au lieu de pfSense Red.
+- **Solution** : Ajout d'une route statique spécifique :
+  ```bash
+  sudo ip route add 192.168.20.0/24 via 192.168.99.1 dev eth1
+  ```
+
+#### 🔴 Problème #3 : Login pfSense refusé après changement de mot de passe
+- **Symptôme** : impossible de se reconnecter au Web UI après changement du mdp admin.
+- **Cause** : probable erreur de saisie lors du changement (caractères spéciaux, clavier).
+- **Solution** : reset via console (option 3), puis changement du mdp avec copier-coller.
+
+### Apprentissages du jour
+
+#### 🧠 Firewall
+- **pfSense = deny by default** sur toutes les interfaces OPT. Chaque flux légitime DOIT être autorisé par une règle explicite.
+- Un **firewall stateful** (comme pfSense) autorise automatiquement les paquets de **retour** d'une connexion initiée. Donc une règle unidirectionnelle (A→B) suffit pour le ping aller-retour.
+- Les **logs firewall** (Status → System Logs → Firewall) sont l'outil n°1 pour voir ce qui est bloqué en temps réel.
+- **Diagnostics → Ping** avec `Source address` custom permet de tester un routage depuis une interface spécifique du pfSense : outil pro de validation.
+
+#### 🧠 Réseau Linux
+- **Table de routage** = GPS du système. Chaque paquet consulte cette table pour savoir par quelle interface sortir.
+- **Metric** = score de priorité d'une route. **Plus petit = plus prioritaire**. En cas de 2 default gateways, Linux prend celle avec la metric la plus basse.
+- Une **route statique** (`ip route add`) force un réseau spécifique à passer par une gateway/interface donnée, même si d'autres routes existent.
+- **Attention** : les routes ajoutées à la volée avec `ip route add` sont **en RAM uniquement**. Au reboot, elles disparaissent. Pour les rendre persistantes, il faut éditer `/etc/network/interfaces` ou utiliser NetworkManager.
+
+#### 🧠 Debug
+- **tcpdump est roi**. Un `tcpdump -i <interface> icmp` qui ne montre RIEN pendant un ping → le paquet n'arrive JAMAIS → le problème est en amont (routage source).
+- **TTL dans ping** : décrémente de 1 à chaque routeur traversé. Un ping avec `ttl=63` au lieu de 64 prouve mathématiquement que le paquet a traversé **1 routeur**.
+- **Dichotomie du debug** : tester chaque segment indépendamment (A→Router OK ? Router→B OK ? Alors A→B devrait l'être. Si non → problème de routage ou firewall entre A et Router).
+
+#### 🧠 Vocabulaire anglais
+| Anglais | Français |
+|---|---|
+| routing table | table de routage |
+| default gateway | passerelle par défaut |
+| metric | métrique (score de route) |
+| static route | route statique |
+| deny by default | bloquer par défaut |
+| stateful firewall | pare-feu à état |
+| inter-VLAN routing | routage inter-VLAN |
+| packet loss | perte de paquets |
+| echo request / echo reply | requête / réponse ICMP |
+
+### Documentation produite
+- Schémas ASCII de la topologie et du routage (problème + solution)
+- Diagrammes de table de routage Kali (pré/post fix)
+- Explication pédagogique de la metric et des default gateways multiples
+- Vocabulaire anglais networking ajouté aux fiches Anki
+
+### Validation finale
+```
+$ ping -c 4 192.168.20.100
+PING 192.168.20.100 (192.168.20.100) 56(84) bytes of data.
+64 bytes from 192.168.20.100: icmp_seq=1 ttl=63 time=1.21 ms
+64 bytes from 192.168.20.100: icmp_seq=2 ttl=63 time=1.98 ms
+64 bytes from 192.168.20.100: icmp_seq=3 ttl=63 time=1.14 ms
+64 bytes from 192.168.20.100: icmp_seq=4 ttl=63 time=1.37 ms
+
+--- 192.168.20.100 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3005ms
+```
+
+**✅ Lab VMware 100% fonctionnel : Kali → pfSense → Metasploitable validé.**
+
+### Prochaine session (#6)
+- Rendre persistantes : route statique Kali + IP statique Meta (survie au reboot)
+- Explorer les services Metasploitable exposés (nmap)
+- **🐍 PHASE 2 : écrire le PREMIER SCRIPT PYTHON — un ping scanner**
+- Objectif : scanner tout le VLAN Servers en Python et détecter les hôtes actifs
 
 ---

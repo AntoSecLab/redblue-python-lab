@@ -1,7 +1,4 @@
 # 🌐 Architecture réseau du lab — redblue-python-lab
-
-> Description détaillée de l'infrastructure réseau virtualisée du lab, avec le **pourquoi** de chaque choix technique.
-
 ---
 
 ## 📐 Vue d'ensemble
